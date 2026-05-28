@@ -2373,26 +2373,12 @@ def main() -> int:
     # ---------------------------------------------------------------------
     # Publicar en GitHub
     # ---------------------------------------------------------------------
-    # Por defecto pregunta. Para publicar sin preguntar: python EveRiesgo_dashboard.py --push
-    # Para NO publicar nunca: python EveRiesgo_dashboard.py --no-push
+    # Por defecto SIEMPRE publica. Para NO publicar: python EveRiesgo_dashboard.py --no-push
     if "--no-push" in sys.argv:
         print(f"\n💡 No se publicó (--no-push). Sube 'index.html' manualmente cuando quieras.")
         return 0
 
-    if "--push" in sys.argv:
-        publicar = True
-    else:
-        try:
-            resp = input("\n¿Publicar en GitHub ahora? [s/N]: ").strip().lower()
-            publicar = resp in ("s", "si", "sí", "y", "yes")
-        except (EOFError, KeyboardInterrupt):
-            publicar = False
-
-    if publicar:
-        publish_to_github(eventos_n=len(eventos), tareas_n=len(tareas))
-    else:
-        print(f"\n💡 No se publicó. Sube 'index.html' manualmente cuando quieras.")
-
+    publish_to_github(eventos_n=len(eventos), tareas_n=len(tareas))
     return 0
 
 
