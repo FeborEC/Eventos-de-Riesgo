@@ -2369,8 +2369,116 @@ def main() -> int:
     print(f"   📄 Archivo: {HTML_FILE.name}")
     print(f"   📊 {len(eventos)} eventos · {len(tareas)} tareas")
     print(f"   💾 Tamaño: {size_kb:,.0f} KB")
-    print(f"\n💡 Abre 'index.html' en tu navegador o súbelo a GitHub Pages.")
+
+    # ---------------------------------------------------------------------
+    # Publicar en GitHub
+    # ---------------------------------------------------------------------
+    # Por defecto pregunta. Para publicar sin preguntar: python EveRiesgo_dashboard.py --push
+    # Para NO publicar nunca: python EveRiesgo_dashboard.py --no-push
+    if "--no-push" in sys.argv:
+        print(f"\n💡 No se publicó (--no-push). Sube 'index.html' manualmente cuando quieras.")
+        return 0
+
+    if "--push" in sys.argv:
+        publicar = True
+    else:
+        try:
+            resp = input("\n¿Publicar en GitHub ahora? [s/N]: ").strip().lower()
+            publicar = resp in ("s", "si", "sí", "y", "yes")
+        except (EOFError, KeyboardInterrupt):
+            publicar = False
+
+    if publicar:
+        publish_to_github(eventos_n=len(eventos), tareas_n=len(tareas))
+    else:
+        print(f"\n💡 No se publicó. Sube 'index.html' manualmente cuando quieras.")
+
     return 0
+
+
+def publish_to_github(eventos_n: int = 0, tareas_n: int = 0) -> bool:
+    """
+    Publica los cambios en GitHub: git add + commit + push.
+    Requiere que la carpeta ya sea un repositorio git configurado y autenticado
+    (como cuando ya tienes GitHub conectado en VS Code).
+    """
+    import subprocess
+
+    print("\n" + "=" * 60)
+    print(" Publicando en GitHub...")
+    print("=" * 60)
+
+    def run(cmd, **kw):
+        return subprocess.run(
+            cmd, cwd=str(SCRIPT_DIR),
+            capture_output=True, text=True, **kw
+        )
+
+    # 1. Verificar que git está disponible
+    r = run(["git", "--version"])
+    if r.returncode != 0:
+        print("❌ Git no está instalado o no está en el PATH.")
+        print("   Instálalo desde https://git-scm.com/ o publica manualmente.")
+        return False
+
+    # 2. Verificar que la carpeta es un repositorio git
+    r = run(["git", "rev-parse", "--is-inside-work-tree"])
+    if r.returncode != 0 or r.stdout.strip() != "true":
+        print("❌ Esta carpeta no es un repositorio Git.")
+        print(f"   Carpeta: {SCRIPT_DIR}")
+        print("   Si tu repo está en otra carpeta, mueve el script ahí, o")
+        print("   inicializa el repo con 'git init' y conéctalo a GitHub.")
+        return False
+
+    # 3. Mostrar el repo remoto
+    r = run(["git", "remote", "get-url", "origin"])
+    if r.returncode == 0 and r.stdout.strip():
+        print(f"   • Repositorio: {r.stdout.strip()}")
+    else:
+        print("⚠️  No hay un remoto 'origin' configurado.")
+        print("   Conéctalo con: git remote add origin <URL_de_tu_repo>")
+        return False
+
+    # 4. git add (solo index.html y el script)
+    run(["git", "add", "index.html"])
+    run(["git", "add", "EveRiesgo_dashboard.py"])
+
+    # 5. Verificar si hay algo que commitear
+    r = run(["git", "status", "--porcelain"])
+    if not r.stdout.strip():
+        print("\n   ℹ️  No hay cambios nuevos que publicar (el HTML es idéntico al último).")
+        return True
+
+    # 6. git commit
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    msg = f"Actualizar dashboard ({eventos_n} eventos, {tareas_n} tareas) - {ts}"
+    r = run(["git", "commit", "-m", msg])
+    if r.returncode != 0:
+        print(f"❌ Error en commit:\n{r.stdout}\n{r.stderr}")
+        return False
+    print(f"   ✓ Commit creado: \"{msg}\"")
+
+    # 7. Detectar la rama actual (DESPUÉS del commit, ya existe con certeza)
+    r = run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+    branch = r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else "main"
+    print(f"   • Rama: {branch}")
+
+    # 8. git push
+    print("   • Subiendo a GitHub...")
+    r = run(["git", "push", "origin", branch])
+    if r.returncode != 0:
+        # Reintentar con --set-upstream por si la rama no tiene upstream
+        r2 = run(["git", "push", "--set-upstream", "origin", branch])
+        if r2.returncode != 0:
+            print(f"❌ Error en push:\n{r.stderr}\n{r2.stderr}")
+            print("\n   Posibles causas:")
+            print("   · No tienes permisos / credenciales (abre VS Code y haz un push manual una vez)")
+            print("   · Hay cambios remotos sin integrar (haz 'git pull' primero)")
+            return False
+
+    print(f"\n   ✅ Publicado en GitHub correctamente.")
+    print(f"   🌐 Si usas GitHub Pages, el sitio se actualizará en 1-2 minutos.")
+    return True
 
 
 if __name__ == "__main__":
